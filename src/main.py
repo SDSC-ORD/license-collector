@@ -1,14 +1,12 @@
 """
-Create an iris flow
+Run all workflows in sequence.
 """
 from prefect import flow
-from prefect_dask.task_runners import DaskTaskRunner  # type: ignore
 
 from config import Config, Location
-from run_notebook import run_notebook
-from src.retrieve import retrieve_flow
-from src.extract import extract_flow
-from src.enhance import enhance_flow
+from retrieve import retrieve_flow
+from extract import extract_flow
+from enhance import enhance_flow
 
 
 @flow
