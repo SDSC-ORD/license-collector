@@ -16,19 +16,8 @@ setup: initialize_git install
 test:
 	pytest
 
-data/raw/repos.json: src/00_extract.py
-	@echo "Getting project list..."
-	python src/retrieve.py
-
-data/processed/filtered.json: data/raw/repos.json src/01_filter.py
-	@echo "Filtering projects..."
-	python src/01_filter.py
-
-data/processed/metadata.ttl data/processed/metadata.csv: data/processed/filtered.json src/02_extract.py
-	@echo "Extracting metadata..."
-	python src/02_extract.py
-
-pipeline: data/processed/metadata.ttl
+pipeline:
+	python src/main.py
 
 ## Delete all compiled Python files
 clean:
