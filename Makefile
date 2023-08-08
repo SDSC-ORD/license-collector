@@ -14,10 +14,10 @@ activate:
 setup: initialize_git install
 
 test:
-	pytest
+	poetry run pytest
 
 pipeline:
-	python src/main.py
+	poetry run python src/main.py
 
 ## Delete all compiled Python files
 clean:
