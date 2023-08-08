@@ -1,3 +1,4 @@
+"""Extract repository metadata from github/gitlab and save to an RDF file.""" ""
 from functools import reduce
 from pathlib import Path
 
@@ -36,10 +37,10 @@ def save_graph(graph: Graph, target_path: Path):
 @flow
 def extract_flow(location: Location = Location()):
     """Extract metadata from github/gitlab and save to an RDF file."""
-    papers = read_papers(location.filtered_papers)
+    papers = read_papers(location.pwc_filtered_json)
     papers_meta = map(extract_metadata, papers)
     meta_graph = reduce(combine_graphs, papers_meta)
-    save_graph(meta_graph, location.metadata)
+    save_graph(meta_graph, location.repo_rdf)
 
 
 if __name__ == "__main__":

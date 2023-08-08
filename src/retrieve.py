@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-"""Python script to process the data"""
+"""Download paperswithcode data, select and save usable projects."""
 
 import requests
 import gzip
 import json
 from pathlib import Path
+import random
 import re
 
 from prefect import flow, task  # type: ignore
@@ -35,6 +36,8 @@ def filter_papers(
     """Filter papers to only include those with a GitHub or GitLab repo"""
     repo_pattern = re.compile(r"^https?://(www\.)?(github|gitlab)\.com/")
     if max_papers is not None:
+        # Papers shuffled in place to avoid bias
+        random.shuffle(papers)
         papers = papers[:max_papers]
     filtered = filter(lambda x: re.search(repo_pattern, x["repo_url"]), papers)
     return list(filtered)
@@ -49,11 +52,11 @@ def save_papers(papers: list[dict], target_path: Path):
 
 @flow
 def retrieve_flow(config: Config = Config(), location: Location = Location()):
-    if not location.all_papers.exists():
-        download_paper_list(location.pwc_url, location.all_papers)
-    papers = read_papers(location.all_papers)
+    if not location.pwc_json.exists():
+        download_paper_list(location.pwc_url, location.pwc_json)
+    papers = read_papers(location.pwc_json)
     papers = filter_papers(papers, max_papers=config.max_papers)
-    save_papers(papers, location.filtered_papers)
+    save_papers(papers, location.pwc_filtered_json)
 
 
 if __name__ == "__main__":
