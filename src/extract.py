@@ -1,67 +1,47 @@
-import pickle
 from functools import reduce
+from pathlib import Path
 
 from gimie.project import Project
+from dotenv import load_dotenv
 from prefect import flow, task
 from rdflib import Graph
 from retrieve import read_papers
 
 from config import Location
 
-EXTRACT_QUERY = """
 
-PREFIX schema: <http://schema.org/>
-
-SELECT ?url ?name ?forks (COUNT(?contributor) as ?contributors) ?license ?created_at ?updated_at
-WHERE {
-    ?url a schema:SoftwareSourceCode ;
-        schema:name ?name ;
-        schema:license ?license ;
-        schema:dateCreated ?created_at ;
-        schema:dateModified ?updated_at .
-
-    ?contributor a schema:Person ;
-        schema:contributor ?url .
-}"""
-
-
-@task
+@task(task_run_name="extract-{paper[repo_url]}")
 def extract_metadata(paper: dict) -> Graph:
-    proj = Project(paper["repo_url"])
-    return proj.to_graph()
+    """Use github/gitlab API to extract metadata about repo"""
+    try:
+        proj = Project(paper["repo_url"])
+        return proj.to_graph()
+    except ValueError:
+        # If the URL is mis-formatted, we just skip the repo
+        return Graph()
 
 
 @task
 def combine_graphs(graph1: Graph, graph2: Graph):
+    """Union of 2 RDF graphs"""
     return graph1 | graph2
 
 
 @task
-def graph_to_table(graph: Graph) -> str:
-    csv = graph.query(EXTRACT_QUERY).serialize(format="csv").decode()
-    return csv
-
-
-@task
-def save_graph(graph: Graph, target_path: str):
+def save_graph(graph: Graph, target_path: Path):
+    """Save RDF graph to file"""
     graph.serialize(destination=target_path, format="turtle")
-
-
-@task
-def save_table(csv: str, target_path: str):
-    with open(target_path, "w") as f:
-        f.write(csv)
 
 
 @flow
 def extract_flow(location: Location = Location()):
+    """Extract metadata from github/gitlab and save to an RDF file."""
     papers = read_papers(location.filtered_papers)
     papers_meta = map(extract_metadata, papers)
-    meta_graph = reduce(combine_graphs(papers_meta))
-    meta_table = graph_to_table(meta_graph)
+    meta_graph = reduce(combine_graphs, papers_meta)
     save_graph(meta_graph, location.metadata)
-    save_table(meta_table, location.meta_table)
 
 
 if __name__ == "__main__":
+    load_dotenv()
     extract_flow()
