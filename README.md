@@ -7,6 +7,8 @@ Automatically collect license and other metadata from open-source data science r
 
 The repository contains a Prefect workflow which downloads a list of open source repositories from paperswithcode (see [links between papers and code](https://paperswithcode.com/about)) and runs [gimie](https://github.com/SDSC-ORD/gimie) on each git repository. The extracted metadata from all repositories are then combined into a single RDF graph. A table is also extracted from this graph to provide specific attributes.
 
+The input dataset contains links to ~200k github repositories. It is provided by paperswithcode under the [CC-BY-SA](https://creativecommons.org/licenses/by-sa/4.0/) license ([download link](https://production-media.paperswithcode.com/about/links-between-papers-and-code.json.gz)).
+
 ## Quick Start
 ### Set up the environment
 1. Install [Poetry](https://python-poetry.org/docs/#installation)
