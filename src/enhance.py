@@ -1,7 +1,8 @@
 """Enhance the metadata with additional information and extract to CSV for visualization."""
 
-from pathlib import Path
 from io import StringIO
+from multiprocessing import Pool
+from pathlib import Path
 
 import pandas as pd
 from prefect import flow, task
@@ -9,6 +10,7 @@ from rdflib import Graph
 
 from config import Location
 from retrieve import read_papers
+from utils import get_popularity
 
 EXTRACT_QUERY = """
 
@@ -28,6 +30,16 @@ WHERE {
     }
 }
 GROUP BY ?url"""
+
+
+@task
+def add_popularity(df: pd.DataFrame) -> pd.DataFrame:
+    """Add git popularity metrics (star and fork counts) to dataframe."""
+    pool = Pool(processes=4)
+    r = pool.map_async(get_popularity, list(df.url))
+    pop_df = pd.DataFrame(r.get(), columns=["stars", "forks"])
+    df[["stars", "forks"]] = pop_df
+    return df
 
 
 @task
@@ -62,6 +74,9 @@ def enhance_flow(location: Location = Location()):
     enhanced_df = pd.merge(
         meta_df, papers_df, left_on="url", right_on="repo_url"
     )
+
+    # Further enrichments
+    enhanced_df = add_popularity(enhanced_df)
 
     # Persist to disk
     enhanced_df.to_csv(location.combined_csv, index=False)
