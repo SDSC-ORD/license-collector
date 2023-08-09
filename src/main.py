@@ -9,7 +9,6 @@ from extract import extract_flow
 from enhance import enhance_flow
 
 
-@flow
 def main_flow():
     retrieve_flow()
     extract_flow()
