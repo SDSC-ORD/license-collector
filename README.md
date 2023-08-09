@@ -15,7 +15,7 @@ The repository is composed of 3 workflows:
 * [`extract.py`](src/extract.py): Run gimie on each repository and extract RDF metadata using the GitLab / GitHub API.
 * [`enhance.py`](src/enhance.py): Combine original paperswithcode dataset with repository metadata for visualization.
 
-> ⚠️ For the `extract.py` workflow, you will need to provide your own GitLab / GitHub API tokens as environment variables `GITHUB_TOKEN` and `GITLAB_TOKEN`.
+> ⚠️ You will need to provide your own GitLab / GitHub API tokens as environment variables `GITHUB_TOKEN` and `GITLAB_TOKEN`.
 
 ```mermaid
 graph TD;
