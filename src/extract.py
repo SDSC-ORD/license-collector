@@ -1,14 +1,11 @@
 """Extract repository metadata from github/gitlab and save to an RDF file.""" ""
-import asyncio
 import os
 from pathlib import Path
 import shutil
 import tempfile
-from typing import AsyncIterator
 
 from dotenv import load_dotenv
 from gimie.project import Project
-from multiprocessing import Pool
 from prefect import flow, task
 from rdflib import Graph
 
@@ -27,15 +24,10 @@ def extract_metadata(paper: dict) -> Path:
     return Path(output_path.name)
 
 
-@task
-async def dispatch_extraction(papers: dict) -> AsyncIterator[Path]:
+@task(retries=3, retry_delay_seconds=5)
+def batch_extraction(paper_batch: list[dict]) -> list[Path]:
     """Extract metadata from github/gitlab and save to files."""
-
-    loop = asyncio.get_event_loop()
-
-    with Pool(processes=4) as pool:
-        for result in pool.imap_unordered(extract_metadata, papers):
-            yield await loop.run_in_executor(None, lambda: result)
+    return [extract_metadata(paper) for paper in paper_batch]
 
 
 def concat_and_cleanup(source_path: Path, target_path: Path):
@@ -47,18 +39,19 @@ def concat_and_cleanup(source_path: Path, target_path: Path):
 
 
 @task
-def save_graph(graph: Graph, target_path: Path):
-    """Save RDF graph to file"""
-    graph.serialize(destination=target_path, format="turtle")
+def batch_papers(
+    papers: list[dict], batch_size: int = 100
+) -> list[list[dict]]:
+    """Split papers into batches of size batch_size."""
+    return [
+        papers[i : i + batch_size] for i in range(0, len(papers), batch_size)
+    ]
 
 
 @task
-async def slurp_files(
-    nt_iter: AsyncIterator[Path], merged_file: Path
-) -> Graph:
-    """Concatenate RDF files into a single graph"""
-    async for nt in nt_iter:
-        concat_and_cleanup(nt, merged_file)
+def collect_files(meta_nt_batch: list[list[Path]]) -> list[Path]:
+    """Collect metadata files from batches."""
+    return [file for batch in meta_nt_batch for file in batch]
 
 
 @flow
@@ -67,13 +60,15 @@ def extract_flow(location: Location = Location()):
 
     # Asynchronously fetch repository metadata for each project
     papers = read_papers(location.pwc_filtered_json)
-    meta_nt_files = dispatch_extraction(papers)
+    batches = batch_papers(papers, batch_size=len(papers) // 32)
+    meta_nt_batch = batch_extraction.map(batches)
 
     # Use nt format (line-based) to concatenate graphs as they are generated
     merged_nt_file = location.repo_rdf.with_suffix(".nt")
     merged_nt_file.unlink(missing_ok=True)
     # Files are lazily concatenated and removed when metadata arrives
-    _ = slurp_files(meta_nt_files, merged_nt_file)
+    for nt in collect_files(meta_nt_batch):
+        concat_and_cleanup(nt, merged_nt_file)
 
     # Save as turtle to drop duplicate triples
     Graph().parse(merged_nt_file, format="nt").serialize(
