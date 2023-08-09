@@ -4,6 +4,7 @@ from functools import reduce
 from pathlib import Path
 import shutil
 import tempfile
+from typing import Iterator
 
 from gimie.project import Project
 from dotenv import load_dotenv
@@ -15,7 +16,6 @@ from retrieve import read_papers
 from config import Location
 
 
-@task(task_run_name="extract-{paper[repo_url]}")
 def extract_metadata(paper: dict) -> Path:
     """Use github/gitlab API to extract metadata about repo to a temporary file."""
     output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".ttl")
@@ -25,6 +25,17 @@ def extract_metadata(paper: dict) -> Path:
     except ValueError:
         pass
     return Path(output_path.name)
+
+
+@task
+def dispatch_extraction(papers: dict) -> Iterator[Path]:
+    """Extract metadata from github/gitlab and save to an RDF file."""
+    from multiprocessing import Pool
+
+    p = Pool(processes=4)
+    paths = p.map_async(extract_metadata, papers)
+    for path in paths.get():
+        yield path
 
 
 @task
@@ -49,7 +60,7 @@ def extract_flow(location: Location = Location()):
     # Fetch repository metadata for each project
     # TODO: Make extraction asynchronous
     papers = read_papers(location.pwc_filtered_json)
-    meta_nt_files = map(extract_metadata, papers)
+    meta_nt_files = dispatch_extraction(papers)
 
     # Use nt format (line-based) to concatenate graphs as they are generated
     merged_nt_file = location.repo_rdf.with_suffix(".nt")
