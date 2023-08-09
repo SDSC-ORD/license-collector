@@ -1,10 +1,14 @@
 """Extract repository metadata from github/gitlab and save to an RDF file.""" ""
+import os
 from functools import reduce
 from pathlib import Path
+import shutil
+import tempfile
 
 from gimie.project import Project
 from dotenv import load_dotenv
 from prefect import flow, task
+
 from rdflib import Graph
 from retrieve import read_papers
 
@@ -12,20 +16,24 @@ from config import Location
 
 
 @task(task_run_name="extract-{paper[repo_url]}")
-def extract_metadata(paper: dict) -> Graph:
-    """Use github/gitlab API to extract metadata about repo"""
+def extract_metadata(paper: dict) -> Path:
+    """Use github/gitlab API to extract metadata about repo to a temporary file."""
+    output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".ttl")
     try:
         proj = Project(paper["repo_url"])
-        return proj.to_graph()
+        proj.serialize(format="nt", destination=output_path.name)
     except ValueError:
-        # If the URL is mis-formatted, we just skip the repo
-        return Graph()
+        pass
+    return Path(output_path.name)
 
 
 @task
-def combine_graphs(graph1: Graph, graph2: Graph):
-    """Union of 2 RDF graphs"""
-    return graph1 | graph2
+def concat_and_cleanup(source_path: Path, target_path: Path):
+    """Memory efficient concatenation and cleanup of temporary RDF file"""
+    with open(target_path, "ab") as wfd:
+        with open(source_path, "rb") as fd:
+            shutil.copyfileobj(fd, wfd)
+        os.remove(source_path)
 
 
 @task
@@ -37,10 +45,23 @@ def save_graph(graph: Graph, target_path: Path):
 @flow
 def extract_flow(location: Location = Location()):
     """Extract metadata from github/gitlab and save to an RDF file."""
+
+    # Fetch repository metadata for each project
+    # TODO: Make extraction asynchronous
     papers = read_papers(location.pwc_filtered_json)
-    papers_meta = map(extract_metadata, papers)
-    meta_graph = reduce(combine_graphs, papers_meta)
-    save_graph(meta_graph, location.repo_rdf)
+    meta_nt_files = map(extract_metadata, papers)
+
+    # Use nt format (line-based) to concatenate graphs as they are generated
+    merged_nt_file = location.repo_rdf.with_suffix(".nt")
+    merged_nt_file.unlink(missing_ok=True)
+    for nt in meta_nt_files:
+        concat_and_cleanup(nt, merged_nt_file)
+
+    # Save as turtle to drop duplicate triples
+    Graph().parse(merged_nt_file, format="nt").serialize(
+        destination=location.repo_rdf, format="turtle"
+    )
+    merged_nt_file.unlink()
 
 
 if __name__ == "__main__":
