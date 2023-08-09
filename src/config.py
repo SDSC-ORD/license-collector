@@ -18,4 +18,4 @@ class Location(BaseModel):
 class Config(BaseModel):
     """Specify parameters for the flow"""
 
-    max_papers: int | None = 10
+    max_papers: int | None = None
