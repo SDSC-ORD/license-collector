@@ -10,13 +10,10 @@ from enhance import enhance_flow
 
 
 @flow
-def main_flow(
-    config: Config = Config(),
-    location: Location = Location(),
-):
-    retrieve_flow(config, location)
-    extract_flow(location)
-    enhance_flow(location)
+def main_flow():
+    retrieve_flow()
+    extract_flow()
+    enhance_flow()
 
 
 if __name__ == "__main__":
