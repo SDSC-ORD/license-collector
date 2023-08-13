@@ -1,9 +1,12 @@
 """Extract repository metadata from github/gitlab and save to an RDF file.""" ""
 import asyncio
+import gzip
+import json
 import os
 from pathlib import Path
 import shutil
 import tempfile
+import time
 from typing import AsyncIterator
 
 from dotenv import load_dotenv
@@ -13,11 +16,10 @@ from multiprocessing import Pool
 from prefect import flow, task
 from rdflib import Graph
 
-from retrieve import read_papers
+#from retrieve import read_papers
 from config import Location
 
 
-@task(retries=3, retry_delay_seconds=10)
 def extract_batch(batch: list[dict]) -> list[Path]:
     """Use github/gitlab API to extract metadata about repo to a temporary file."""
     output_paths = []
@@ -31,15 +33,19 @@ def extract_batch(batch: list[dict]) -> list[Path]:
 def extract_metadata(paper: dict) -> Path:
     """Use github/gitlab API to extract metadata about repo to a temporary file."""
     output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".ttl")
-    try:
-        proj = Project(paper["repo_url"])
-        proj.serialize(format="nt", destination=output_path.name)
-    except ValueError:
-        pass
+    while True:
+        try:
+            proj = Project(paper["repo_url"])
+            proj.serialize(format="nt", destination=output_path.name)
+        except ValueError:
+            break
+        except ConnectionError:
+            time.sleep(100)
+            continue
+        break
     return Path(output_path.name)
 
 
-@task
 def concat_and_cleanup(source_path: Path, target_path: Path):
     """Memory efficient concatenation and cleanup of temporary RDF file"""
     with open(target_path, "ab") as wfd:
@@ -48,13 +54,12 @@ def concat_and_cleanup(source_path: Path, target_path: Path):
         os.remove(source_path)
 
 
-@task
-def save_graph(graph: Graph, target_path: Path):
-    """Save RDF graph to file"""
-    graph.serialize(destination=target_path, format="turtle")
+def read_papers(path: Path) -> list[dict]:
+    """Read the paperswithcode from a gzipped json file"""
+    with gzip.open(path, "r") as f:
+        return json.load(f)
 
 
-@flow
 def extract_flow(location: Location = Location()):
     """Extract metadata from github/gitlab and save to an RDF file."""
 
