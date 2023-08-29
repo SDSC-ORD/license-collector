@@ -33,15 +33,22 @@ def extract_batch(batch: list[dict]) -> list[Path]:
 def extract_metadata(paper: dict) -> Path:
     """Use github/gitlab API to extract metadata about repo to a temporary file."""
     output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".ttl")
+    url = paper["repo_url"]
     while True:
         try:
-            proj = Project(paper["repo_url"])
+            print(f"Trying {url}")
+            proj = Project(url)
             proj.serialize(format="nt", destination=output_path.name)
-        except ValueError:
-            break
-        except ConnectionError:
+        except ConnectionError as err:
+            if "too large" in str(err):
+                print(f"Failed for {url}: {err}")
+                break
+            print(f"Will retry for {url}: {err}")
             time.sleep(100)
             continue
+        except:
+            print(f"Failed for {url}")
+            break
         break
     return Path(output_path.name)
 
