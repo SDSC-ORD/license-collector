@@ -31,10 +31,15 @@ def read_papers(path: Path) -> list[dict]:
 
 @task
 def filter_papers(
-    papers: list[dict], max_papers: int | None = None
+        papers: list[dict],
+        max_papers: int | None = None,
+        exclude: set[str] | None = None
 ) -> list[dict]:
     """Filter papers to only include those with a GitHub or GitLab repo"""
     repo_pattern = re.compile(r"^https?://(www\.)?(github|gitlab)\.com/")
+    
+    if exclude is not None:
+        papers = [paper for paper in papers if paper["repo_url"] not in exclude]
     if max_papers is not None:
         # Papers shuffled in place to avoid bias
         random.shuffle(papers)
@@ -55,7 +60,11 @@ def retrieve_flow(config: Config = Config(), location: Location = Location()):
     if not location.pwc_json.exists():
         download_paper_list(location.pwc_url, location.pwc_json)
     papers = read_papers(location.pwc_json)
-    papers = filter_papers(papers, max_papers=config.max_papers)
+    if location.exclude_list is None:
+        exclude = None
+    else:
+        exclude = set([url.strip() for url in open(location.exclude_list)])
+    papers = filter_papers(papers, max_papers=config.max_papers, exclude=exclude)
     save_papers(papers, location.pwc_filtered_json)
 
 
