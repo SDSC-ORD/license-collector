@@ -13,7 +13,7 @@ class Location(BaseModel):
     pwc_filtered_json: str = Path("data/processed/filtered_papers.json.gz")
     repo_rdf: str = Path("data/processed/repo_meta.ttl")
     combined_csv: str = Path("data/final/combined_metadata.csv")
-    exclude_list: Path | None = Path("data/exclude.txt") # file with 1 URL / line
+    exclude_list: Path | None = None
 
 
 class Config(BaseModel):
