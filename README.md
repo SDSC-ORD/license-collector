@@ -52,3 +52,6 @@ To run the Python scripts type the following:
 make pipeline
 ```
 
+## Contributing
+
+Issues and pull requests are welcome. The code formatting standard we use is [black](https://github.com/psf/black), with `--line-length=79` to follow [PEP8](https://peps.python.org/pep-0008/) recommendations. This project uses [pyproject.toml](https://pip.pypa.io/en/stable/reference/build-system/pyproject-toml/) to define package information, requirements and tooling configuration.
